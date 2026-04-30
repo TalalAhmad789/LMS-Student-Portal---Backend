@@ -1,0 +1,69 @@
+import mongoose from 'mongoose'
+import bcrypt from 'bcrypt'
+import jwt from 'jsonwebtoken'
+
+const teacherSchema = new mongoose.Schema(
+    {
+        fullName: {
+            type: String,
+            required: true
+        },
+        specification: {
+            type: String,
+            required: true
+        },
+        cnic: {
+            type: String,
+            required: true,
+            unique: true
+        },
+        teacherId: {
+            type: String,
+            required: true,
+            unique: true
+        },
+        email: {
+            type: String,
+            required: true
+        },
+        status: {
+            type: String,
+            enum: ['Active', 'Disabled'],
+            default: 'Disabled'
+        },
+        password: {
+            type: String,
+            required: true
+        }
+    },
+    {
+        timestamps: true
+    }
+)
+
+teacherSchema.pre('save', async function (next) {
+
+    if (!this.isModified("password")) return next()
+
+    this.password = await bcrypt.hash(this.password, 10);
+    next();
+
+})
+
+teacherSchema.methods.isPasswordCorrect = async function (password) {
+    return await bcrypt.compare(password, this.password);
+}
+
+teacherSchema.methods.generateAccessToken = async function (exp_chk) {
+
+        return jwt.sign({
+            _id: this._id
+        },
+            process.env.ACCESS_TOKEN_SECRET,
+            {
+                expiresIn: exp_chk ? "30d" : process.env.ACCESS_TOKEN_EXPIRY
+            }
+        )
+}
+
+export const Teacher = mongoose.models.teacherSchema || mongoose.model("Teacher", teacherSchema)
