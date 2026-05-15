@@ -21,6 +21,14 @@ const adminSchema = new mongoose.Schema({
         enum: ['Active', 'Disabled'],
         default: 'Disabled'
     },
+    profileImage: {
+        type: String,
+        default: null
+    },
+    profileImagePublicId: {
+        type: String,
+        default: null
+    },
     password: {
         type: String,
         required: true

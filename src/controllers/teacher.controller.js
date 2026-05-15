@@ -5,6 +5,7 @@ import { Lecture } from '../models/lecture.model.js'
 import { Attendance } from '../models/attendance.model.js'
 import { ApiResponse } from '../utils/ApiResponse.js';
 import { ApiError } from '../utils/ApiError.js';
+import { uploadOnCloudinary, deleteFromCloudinary } from '../utils/cloudinary.js'
 
 const generateAccessToken = async (userId, expiry_date_check) => {
     const teacher = await Teacher.findById(userId);
@@ -83,6 +84,47 @@ const currentTeacher = asyncHandler(async (req, res) => {
         .json(
             new ApiResponse(200, { teacher: req?.user }, "User fetched successfully!")
         );
+});
+
+const uploadTeacherImage = asyncHandler(async (req, res) => {
+    const avatarFile = req.file?.path;
+    const id = req?.body?.id;
+
+    if (!avatarFile) {
+        return res.status(400).json(new ApiError(400, "Avatar image is not provided!"));
+    }
+
+    const avatar = await uploadOnCloudinary(avatarFile, "LMS_Portal/teachers/avatars");
+
+    if (!avatar) {
+        return res.status(400).json(new ApiError(400, "Failed to upload avatar image to Cloudinary!"));
+    }
+
+    const teacher = await Teacher.findById(id);
+
+    if (!teacher) {
+        return res.status(404).json(new ApiError(404, "Teacher not found!"));
+    }
+
+    const oldPublicId = teacher.profileImagePublicId;
+
+    if (oldPublicId) {
+        const deleteAvatar = await deleteFromCloudinary(oldPublicId);
+        if (!deleteAvatar) {
+            return res.status(400).json(new ApiError(400, "Something went wrong while deleting the old image!"));
+        }
+    }
+
+    await Teacher.findByIdAndUpdate(id, {
+        $set: {
+            profileImage: avatar.secure_url,
+            profileImagePublicId: avatar.public_id
+        }
+    });
+
+    return res.status(200).json(
+        new ApiResponse(200, { avatarUrl: avatar.secure_url }, "Profile image uploaded successfully!")
+    );
 });
 
 const getTeacherLectures = asyncHandler(async (req, res) => {
@@ -283,7 +325,8 @@ export {
     submitAttendance,
     getAttendance,
     getStudentAttendance,
-    updateStudentAttendance
+    updateStudentAttendance,
+    uploadTeacherImage
 };
 
 

@@ -23,7 +23,7 @@ const studentSchema = new Schema({
     },
     profileImage: {
         type: String,
-        default: 'none'
+        default: null
     },
     profileImagePublicId: {
         type: String,

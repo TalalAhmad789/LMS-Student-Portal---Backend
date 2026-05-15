@@ -1,10 +1,8 @@
-import dotenv from 'dotenv'
+import 'dotenv/config'
 import app from './app.js'
 import { dataBaseConnection } from './src/db/connection.js'
 
-dotenv.config({
-    path: './.env'
-})
+
 
 const port = process.env.PORT || 8000
 
@@ -18,6 +16,6 @@ dataBaseConnection()
         console.log("MONGO db connection failed !!! ", err);
     })
 
-app.get('/', (req, res)=>{
+app.get('/', (req, res) => {
     res.send("Hello World");
 })

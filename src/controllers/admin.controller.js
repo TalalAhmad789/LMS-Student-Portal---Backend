@@ -9,6 +9,7 @@ import bcrypt from 'bcrypt'
 import jwt from 'jsonwebtoken'
 import { ApiResponse } from '../utils/ApiResponse.js';
 import { ApiError } from '../utils/ApiError.js';
+import { uploadOnCloudinary, deleteFromCloudinary } from '../utils/cloudinary.js'
 
 const generateAccessToken = (userId, expiry_date_check) => {
     const accessToken = jwt.sign(
@@ -389,6 +390,47 @@ const updateAdmin = asyncHandler(async (req, res) => {
     );
 });
 
+const uploadAdminImage = asyncHandler(async (req, res) => {
+    const avatarFile = req.file?.path;
+    const id = req?.body?.id;
+
+    if (!avatarFile) {
+        return res.status(400).json(new ApiError(400, "Avatar image is not provided!"));
+    }
+
+    const avatar = await uploadOnCloudinary(avatarFile, "LMS_Portal/admins/avatars");
+
+    if (!avatar) {
+        return res.status(400).json(new ApiError(400, "Failed to upload avatar image to Cloudinary!"));
+    }
+
+    const admin = await Admin.findById(id);
+
+    if (!admin) {
+        return res.status(404).json(new ApiError(404, "Admin not found!"));
+    }
+
+    const oldPublicId = admin.profileImagePublicId;
+
+    if (oldPublicId) {
+        const deleteAvatar = await deleteFromCloudinary(oldPublicId);
+        if (!deleteAvatar) {
+            return res.status(400).json(new ApiError(400, "Something went wrong while deleting the old image!"));
+        }
+    }
+
+    await Admin.findByIdAndUpdate(id, {
+        $set: {
+            profileImage: avatar.secure_url,
+            profileImagePublicId: avatar.public_id
+        }
+    });
+
+    return res.status(200).json(
+        new ApiResponse(200, { avatarUrl: avatar.secure_url }, "Profile image uploaded successfully!")
+    );
+});
+
 const deleteAdmin = asyncHandler(async (req, res) => {
     const deletedAdmin = await Admin.findByIdAndDelete(req.params.id);
 
@@ -499,11 +541,11 @@ const resetAdminPassword = asyncHandler(async (req, res) => {
 // ─── Timetable Controllers ────────────────────────────────────────────────────
 
 const addTimetable = asyncHandler(async (req, res) => {
-    const { degreeTitle, semester, section, day, courseName, teacherName, roomNo, startTime, endTime, shift } = req.body;
+    const { degreeTitle, semester, section, day, courseName, courseCode, teacherName, startTime, endTime, shift } = req.body;
 
-    if (!degreeTitle || !semester || !section || !day || !courseName || !teacherName || !roomNo || !startTime || !endTime || !shift ||
+    if (!degreeTitle || !semester || !section || !day || !courseName || !courseCode || !teacherName || !startTime || !endTime || !shift ||
         degreeTitle.length === 0 || semester.length === 0 || section.length === 0 || day.length === 0 ||
-        courseName.length === 0 || teacherName.length === 0 || roomNo.length === 0 ||
+        courseName.length === 0 || teacherName.length === 0 || courseCode.length === 0 ||
         startTime.length === 0 || endTime.length === 0 || shift.length === 0) {
         return res.status(400).json(new ApiError(400, "All fields are required!"));
     }
@@ -511,7 +553,7 @@ const addTimetable = asyncHandler(async (req, res) => {
     const timetableExist = await Timetable.findOne({
         $and: [
             { degreeTitle }, { semester }, { section }, { day },
-            { courseName }, { teacherName }, { roomNo }, { startTime }, { endTime }, { shift }
+            { courseName }, { teacherName }, { courseCode }, { startTime }, { endTime }, { shift }
         ]
     });
 
@@ -521,7 +563,7 @@ const addTimetable = asyncHandler(async (req, res) => {
 
     const timetable = await Timetable.create({
         degreeTitle, semester, section, day, courseName,
-        teacherName, roomNo, startTime, endTime, shift
+        teacherName, courseCode, startTime, endTime, shift
     });
 
     const createdTimetable = await Timetable.findById(timetable?._id);
@@ -587,5 +629,6 @@ export {
     deleteTimetable,
     resetStudentPassword,
     resetTeacherPassword,
-    resetAdminPassword
+    resetAdminPassword,
+    uploadAdminImage
 };

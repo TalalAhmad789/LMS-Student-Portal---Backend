@@ -31,6 +31,14 @@ const teacherSchema = new mongoose.Schema(
             enum: ['Active', 'Disabled'],
             default: 'Disabled'
         },
+        profileImage: {
+            type: String,
+            default: null
+        },
+        profileImagePublicId: {
+            type: String,
+            default: null
+        },
         password: {
             type: String,
             required: true
@@ -56,14 +64,14 @@ teacherSchema.methods.isPasswordCorrect = async function (password) {
 
 teacherSchema.methods.generateAccessToken = async function (exp_chk) {
 
-        return jwt.sign({
-            _id: this._id
-        },
-            process.env.ACCESS_TOKEN_SECRET,
-            {
-                expiresIn: exp_chk ? "30d" : process.env.ACCESS_TOKEN_EXPIRY
-            }
-        )
+    return jwt.sign({
+        _id: this._id
+    },
+        process.env.ACCESS_TOKEN_SECRET,
+        {
+            expiresIn: exp_chk ? "30d" : process.env.ACCESS_TOKEN_EXPIRY
+        }
+    )
 }
 
 export const Teacher = mongoose.models.teacherSchema || mongoose.model("Teacher", teacherSchema)

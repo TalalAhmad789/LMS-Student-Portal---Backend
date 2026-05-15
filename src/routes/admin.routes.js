@@ -1,8 +1,9 @@
 import Router from 'express'
 import {
-    deleteStudent, updateStudent, getStudent, registerStudent, deleteTeacher, updateTeacher, getTeacher, registerTeacher, addLecture, deleteLecture, getLecture, addCourse, deleteCourse, getCourse, loginAdmin, currentAdmin, logoutAdmin, registerAdmin, getAdmin, deleteAdmin, updateAdmin, registerSuperAdmin, addTimetable, deleteTimetable, getTimetable, resetStudentPassword, resetTeacherPassword, resetAdminPassword
+    deleteStudent, updateStudent, getStudent, registerStudent, deleteTeacher, updateTeacher, getTeacher, registerTeacher, addLecture, deleteLecture, getLecture, addCourse, deleteCourse, getCourse, loginAdmin, currentAdmin, logoutAdmin, registerAdmin, getAdmin, deleteAdmin, updateAdmin, registerSuperAdmin, addTimetable, deleteTimetable, getTimetable, resetStudentPassword, resetTeacherPassword, resetAdminPassword, uploadAdminImage
 } from '../controllers/admin.controller.js'
 import { verifyAdminToken } from '../middlewares/auth.middleware.js'
+import { upload } from '../middlewares/multer.middleware.js'
 
 const router = Router();
 
@@ -38,5 +39,6 @@ router.route('/login').post(loginAdmin)
 router.route('/logout').post(verifyAdminToken, logoutAdmin)
 router.route('/me').get(verifyAdminToken, currentAdmin)
 router.route('/admin/reset-password').post(resetAdminPassword)
+router.route('/change-profile-image').post(upload.single("avatar"), uploadAdminImage)
 
 export default router
