@@ -34,7 +34,7 @@ const registerStudent = asyncHandler(async (req, res) => {
     }
 
     const startDate = sessionStartDate.split("-")[0];
-    const studentId = `${degreeTitle}-${collegeRollNo}-${startDate}`;
+    const studentId = `${startDate}-${degreeTitle}-${collegeRollNo}`;
 
     const studentExist = await Student.findOne({
         $or: [{ cnic }, { studentId }, { collegeRollNo }]
