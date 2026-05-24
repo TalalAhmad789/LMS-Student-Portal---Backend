@@ -5,6 +5,8 @@ import { Course } from '../models/course.model.js';
 import { uploadOnCloudinary, deleteFromCloudinary } from '../utils/cloudinary.js'
 import { ApiError } from '../utils/ApiError.js';
 import { ApiResponse } from '../utils/ApiResponse.js';
+import { Lecture } from '../models/lecture.model.js';
+import { Teacher } from '../models/teacher.model.js';
 
 const generateAccessToken = async (userId, expiry_date_check) => {
     const student = await Student.findById(userId);
@@ -85,103 +87,8 @@ const currentStudent = asyncHandler(async (req, res) => {
         );
 });
 
-// const calculateCourseAttendance = asyncHandler(async (req, res) => {
-//     const { studentId, collegeRollNo, semester, degreeTitle } = req.body;
-
-//     if (!studentId || !collegeRollNo || !semester || !degreeTitle) {
-//         return res.status(400).json(new ApiError(400, "All fields are required!"));
-//     }
-
-//     const attendance = await Attendance.find({
-//         $and: [{ studentId }, { collegeRollNo }, { semester }, { degreeTitle }]
-//     });
-
-//     const course = await Course.find({
-//         $and: [{ degreeTitle }, { semester }]
-//     });
-
-//     if (!course.length) {
-//         return res.status(200).json(
-//             new ApiResponse(200, {
-//                 courseAttendance: [],
-//                 overAllAttendance: {
-//                     classConducted: "0/0",
-//                     totalClassConducted: "0",
-//                     percentage: 0
-//                 }
-//             }, "No course found.")
-//         );
-//     }
-
-//     if (!attendance.length) {
-//         return res.status(200).json(
-//             new ApiResponse(200, {
-//                 courseAttendance: course.map((item) => ({
-//                     courseName: item.courseName,
-//                     courseCode: item.courseCode,
-//                     percentage: 0,
-//                     classConducted: "0/0"
-//                 })),
-//                 overAllAttendance: {
-//                     classConducted: "0/0",
-//                     totalClassConducted: "0",
-//                     percentage: 0
-//                 }
-//             }, "No attendance marked yet.")
-//         );
-//     }
-
-
-
-//     const courseAttendance = course.map((course) => {
-//         const filterAttendance = attendance.filter(
-//             (a) => a.courseCode === course.courseCode
-//         );
-
-//         let presentCount = 0;
-//         let absentCount = 0;
-
-//         filterAttendance.forEach((item) => {
-//             if (item.attendance === "Present") presentCount++;
-//             else if (item.attendance === "Absent") absentCount++;
-//         });
-
-//         const leaveCount = filterAttendance.length - (presentCount + absentCount);
-//         const totalCount = filterAttendance.length - leaveCount;
-//         const percentage = parseInt((presentCount / totalCount) * 100);
-
-//         return {
-//             courseName: course.courseName,
-//             courseCode: course.courseCode,
-//             percentage: isNaN(percentage) ? 0 : percentage,
-//             classConducted: `${presentCount}/${totalCount}`
-//         };
-//     });
-
-//     const classC = courseAttendance.reduce(
-//         (sum, item) => sum + parseInt(item.classConducted.split("/")[0]),
-//         0
-//     );
-//     const totalC = courseAttendance.reduce(
-//         (sum, item) => sum + parseInt(item.classConducted.split("/")[1]),
-//         0
-//     );
-
-//     const totalPercentage = parseInt((classC / totalC) * 100);
-
-//     const overAllAttendance = {
-//         classConducted: `${classC}/${totalC}`,
-//         totalClassConducted: `${totalC}`,
-//         percentage: isNaN(totalPercentage) ? 0 : totalPercentage
-//     };
-
-//     return res.status(200).json(
-//         new ApiResponse(200, { courseAttendance, overAllAttendance }, "Attendance calculated successfully!")
-//     );
-// });
-
 const calculateCourseAttendance = asyncHandler(async (req, res) => {
-    const { studentId, collegeRollNo, semester, degreeTitle } = req.body;
+    const { studentId, collegeRollNo, semester, degreeTitle, shift, section } = req.body;
 
     if (!studentId || !collegeRollNo || !semester || !degreeTitle) {
         return res
@@ -189,7 +96,6 @@ const calculateCourseAttendance = asyncHandler(async (req, res) => {
             .json(new ApiError(400, "All fields are required!"));
     }
 
-    // Get all courses for semester + degree
     const courses = await Course.find({
         degreeTitle,
         semester
@@ -212,7 +118,6 @@ const calculateCourseAttendance = asyncHandler(async (req, res) => {
         );
     }
 
-    // Aggregation Pipeline
     const attendanceData = await Attendance.aggregate([
         {
             $match: {
@@ -278,34 +183,64 @@ const calculateCourseAttendance = asyncHandler(async (req, res) => {
         }
     ]);
 
-    // Merge with courses
-    const courseAttendance = courses.map((course) => {
-        const attendance = attendanceData.find(
-            (a) => a.courseCode === course.courseCode
-        );
+    const courseAttendance = await Promise.all(
+        courses.map(async (course) => {
 
-        if (!attendance) {
+            const attendance = attendanceData.find(
+                (a) => a.courseCode === course.courseCode
+            );
+
+            const lecture = await Lecture.find({
+                courseCode: course.courseCode,
+                degreeTitle,
+                semester,
+                section,
+                shift
+            }).select("teacherId");
+
+            let teacherNames = [];
+
+            for (const l of lecture) {
+
+                const teacher = await Teacher.findOne({
+                    teacherId: l?.teacherId
+                }).select("fullName");
+
+                if (teacher?.fullName) {
+                    teacherNames.push(teacher.fullName);
+                }
+            }
+
+            if (!attendance) {
+                return {
+                    courseName: course.courseName,
+                    courseCode: course.courseCode,
+                    teacherName:
+                        teacherNames.length === 0
+                            ? null
+                            : teacherNames.join(" + "),
+                    percentage: 0,
+                    classConducted: "0/0"
+                };
+            }
+
+            const percentage = parseInt(
+                (attendance.presentCount / attendance.totalCount) * 100
+            );
+
             return {
                 courseName: course.courseName,
                 courseCode: course.courseCode,
-                percentage: 0,
-                classConducted: "0/0"
+                teacherName:
+                    teacherNames.length === 0
+                        ? null
+                        : teacherNames.join(" + "),
+                percentage: isNaN(percentage) ? 0 : percentage,
+                classConducted: `${attendance.presentCount}/${attendance.totalCount}`
             };
-        }
+        })
+    );
 
-        const percentage = parseInt(
-            (attendance.presentCount / attendance.totalCount) * 100
-        );
-
-        return {
-            courseName: course.courseName,
-            courseCode: course.courseCode,
-            percentage: isNaN(percentage) ? 0 : percentage,
-            classConducted: `${attendance.presentCount}/${attendance.totalCount}`
-        };
-    });
-
-    // Overall Attendance
     const classC = courseAttendance.reduce(
         (sum, item) => sum + parseInt(item.classConducted.split("/")[0]),
         0
@@ -335,6 +270,56 @@ const calculateCourseAttendance = asyncHandler(async (req, res) => {
         )
     );
 });
+
+const fetchSpecificAttendance = asyncHandler(async (req, res) => {
+    const { date, studentId, collegeRollNo, degreeTitle, semester } = req.body;
+
+    const filteredAttendance = await Attendance.aggregate([
+        {
+            $match: {
+                studentId,
+                collegeRollNo,
+                degreeTitle,
+                semester
+            }
+        },
+        {
+            $match: {
+                $expr: {
+                    $eq: [
+                        {
+                            $dateToString: {
+                                format: "%Y-%m-%d",
+                                date: "$createdAt"
+                            }
+                        },
+                        date
+                    ]
+                }
+            }
+        },
+        {
+            $lookup: {
+                from: "courses",
+                localField: "courseCode",
+                foreignField: "courseCode",
+                as: "courseDetails"
+            }
+        },
+        {
+            $unwind: "$courseDetails"
+        },
+        {
+            $project: {
+                _id: 0,
+                courseCode: 1,
+                courseName: "$courseDetails.courseName",
+                attendance: 1
+            }
+        }
+    ])
+    return res.status(200).json(new ApiResponse(200, { attendance: filteredAttendance }, "Specific attendances fetched!"))
+})
 
 const changePassword = asyncHandler(async (req, res) => {
     const { current_password, new_password, retype_password } = req.body;
@@ -415,5 +400,6 @@ export {
     currentStudent,
     changePassword,
     uploadStudentImage,
-    calculateCourseAttendance
+    calculateCourseAttendance,
+    fetchSpecificAttendance
 };

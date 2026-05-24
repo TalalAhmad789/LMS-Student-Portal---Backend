@@ -120,7 +120,7 @@ const resetStudentPassword = asyncHandler(async (req, res) => {
     }
 
     student.password = student.cnic;
-    await student.save();
+    student.save();
 
     return res.status(200).json(new ApiResponse(200, "Student password reset successfully!"));
 })
@@ -210,7 +210,7 @@ const resetTeacherPassword = asyncHandler(async (req, res) => {
     }
 
     teacher.password = teacher.cnic;
-    await teacher.save();
+    teacher.save();
 
     return res.status(200).json(new ApiResponse(200, "Teacher password reset successfully!"));
 })
@@ -456,21 +456,25 @@ const loginAdmin = asyncHandler(async (req, res) => {
         return res.status(400).json(new ApiError(400, "All fields are required!"));
     }
 
-    const adminExist = await Admin.findOne({ email });
+    const admin = await Admin.findOne({ email });
 
-    if (!adminExist) {
+    if (!admin) {
         return res.status(401).json(new ApiError(401, "Invalid credentials!"));
     }
 
-    const passwordValid = await bcrypt.compare(password, adminExist.password);
+    if (admin.status === 'Disabled') {
+        return res.status(403).json(new ApiError(403, "Your access is denied!"));
+    }
+
+    const passwordValid = await admin.isPasswordCorrect(password);
 
     if (!passwordValid) {
         return res.status(401).json(new ApiError(401, "Invalid credentials!"));
     }
 
-    const { accessToken } = generateAccessToken(adminExist._id, checkbox);
+    const { accessToken } = generateAccessToken(admin._id, checkbox);
 
-    const loggedInAdmin = await Admin.findById(adminExist._id).select("-password");
+    const loggedInAdmin = await Admin.findById(admin._id).select("-password");
 
     const options = {
         httpOnly: true,
@@ -533,10 +537,42 @@ const resetAdminPassword = asyncHandler(async (req, res) => {
     }
 
     admin.password = admin.cnic;
-    await admin.save();
+    admin.save();
 
     return res.status(200).json(new ApiResponse(200, "Admin password reset successfully!"));
 })
+
+const changePassword = asyncHandler(async (req, res) => {
+    const { current_password, new_password, retype_password } = req.body;
+
+    if (!current_password || !new_password || !retype_password ||
+        current_password.length === 0 || new_password.length === 0 || retype_password.length === 0) {
+        return res.status(400).json(new ApiError(400, "All fields are required!"));
+    }
+
+    if (new_password !== retype_password) {
+        return res.status(400).json(new ApiError(400, "Passwords don't match!"));
+    }
+
+    const admin = await Admin.findById(req?.user?._id);
+
+    if (!admin) {
+        return res.status(404).json(new ApiError(404, "Admin not found!"));
+    }
+
+    const isPasswordCorrect = await admin.isPasswordCorrect(current_password);
+
+    if (!isPasswordCorrect) {
+        return res.status(400).json(new ApiError(400, "Current password is incorrect!"));
+    }
+
+    admin.password = new_password;
+    await admin.save();
+
+    return res.status(200).json(
+        new ApiResponse(200, {}, "Password changed successfully!")
+    );
+});
 
 // ─── Timetable Controllers ────────────────────────────────────────────────────
 
@@ -630,5 +666,6 @@ export {
     resetStudentPassword,
     resetTeacherPassword,
     resetAdminPassword,
-    uploadAdminImage
+    uploadAdminImage,
+    changePassword
 };

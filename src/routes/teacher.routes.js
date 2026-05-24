@@ -1,5 +1,5 @@
 import Router from 'express'
-import { loginTeacher, logoutTeacher, currentTeacher, getTeacherLectures, getLectureEnrolledStudents, submitAttendance, getAttendance, getStudentAttendance, updateStudentAttendance, uploadTeacherImage } from '../controllers/teacher.controller.js'
+import { loginTeacher, logoutTeacher, currentTeacher, getTeacherLectures, getLectureEnrolledStudents, submitAttendance, getAttendance, getStudentAttendance, updateStudentAttendance, uploadTeacherImage, changePassword } from '../controllers/teacher.controller.js'
 import { verifyTeacherToken } from '../middlewares/auth.middleware.js'
 import { upload } from '../middlewares/multer.middleware.js';
 
@@ -15,5 +15,6 @@ router.route('/attendance/find').get(getAttendance)
 router.route('/attendance/edit/fetch').get(getStudentAttendance)
 router.route('/attendance/edit/update').post(updateStudentAttendance)
 router.route('/change-profile-image').post(upload.single("avatar"), uploadTeacherImage)
+router.route('/change-password').post(verifyTeacherToken ,changePassword)
 
 export default router
