@@ -14,6 +14,9 @@ const studentSchema = new Schema({
         required: true,
         unique: true
     },
+    studentHistory: {
+        type: [Object]
+    },
     degreeTitle: {
         type: String,
         required: true

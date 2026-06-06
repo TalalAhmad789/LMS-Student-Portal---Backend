@@ -1,7 +1,10 @@
 import Router from 'express'
 import {
-    deleteStudent, updateStudent, getStudent, registerStudent, deleteTeacher, updateTeacher, getTeacher, registerTeacher, addLecture, deleteLecture, getLecture, addCourse, deleteCourse, getCourse, loginAdmin, currentAdmin, logoutAdmin, registerAdmin, getAdmin, deleteAdmin, updateAdmin, registerSuperAdmin, addTimetable, deleteTimetable, getTimetable, resetStudentPassword, resetTeacherPassword, resetAdminPassword, uploadAdminImage, changePassword
+    deleteStudent, updateStudent, getStudent, registerStudent, deleteTeacher, updateTeacher, getTeacher, registerTeacher, loginAdmin, currentAdmin, logoutAdmin, registerAdmin, getAdmin, deleteAdmin, updateAdmin, registerSuperAdmin, resetStudentPassword, resetTeacherPassword, resetAdminPassword, uploadAdminImage, changePassword, calculateAttendanceByClass, calculateAttendanceByStudent, calculateSOStudentAttendance, fetchStudentsForPromotion, promoteAndSaveStdAttendance
 } from '../controllers/admin.controller.js'
+import { addCourse, getCourse, deleteCourse } from '../controllers/course.controller.js'
+import { addTimetable, getTimetable, deleteTimetable } from '../controllers/admin.controller.js'
+import { addLecture, getLecture, deleteLecture } from '../controllers/lecture.controller.js'
 import { verifyAdminToken } from '../middlewares/auth.middleware.js'
 import { upload } from '../middlewares/multer.middleware.js'
 
@@ -41,5 +44,11 @@ router.route('/me').get(verifyAdminToken, currentAdmin)
 router.route('/admin/reset-password').post(resetAdminPassword)
 router.route('/change-profile-image').post(upload.single("avatar"), uploadAdminImage)
 router.route('/change-password').post(verifyAdminToken, changePassword)
+
+router.route('/attendance-by-class').post(calculateAttendanceByClass)
+router.route('/attendance-by-student').post(calculateAttendanceByStudent)
+router.route('/attendance-by-so-student').post(calculateSOStudentAttendance)
+router.route('/get-student-for-promotion').post(fetchStudentsForPromotion)
+router.route('/student-promotion').post(promoteAndSaveStdAttendance)
 
 export default router

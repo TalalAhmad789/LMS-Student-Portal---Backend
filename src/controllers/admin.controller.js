@@ -10,6 +10,7 @@ import jwt from 'jsonwebtoken'
 import { ApiResponse } from '../utils/ApiResponse.js';
 import { ApiError } from '../utils/ApiError.js';
 import { uploadOnCloudinary, deleteFromCloudinary } from '../utils/cloudinary.js'
+import { Attendance } from '../models/attendance.model.js';
 
 const generateAccessToken = (userId, expiry_date_check) => {
     const accessToken = jwt.sign(
@@ -62,7 +63,7 @@ const registerStudent = asyncHandler(async (req, res) => {
 });
 
 const getStudent = asyncHandler(async (req, res) => {
-    const students = await Student.find();
+    const students = await Student.find().sort("collegeRollNo");
 
     if (!students.length) {
         return res.status(404).json(new ApiError(404, "No students found!"));
@@ -214,121 +215,6 @@ const resetTeacherPassword = asyncHandler(async (req, res) => {
 
     return res.status(200).json(new ApiResponse(200, "Teacher password reset successfully!"));
 })
-
-// ─── Lecture Controllers ──────────────────────────────────────────────────────
-
-const addLecture = asyncHandler(async (req, res) => {
-    const { teacherId, courseCode, degreeTitle, section, shift, semester } = req.body;
-
-    if (!teacherId || !courseCode || !degreeTitle || !section || !shift || !semester ||
-        teacherId.length === 0 || courseCode.length === 0 || degreeTitle.length === 0 ||
-        section.length === 0 || shift.length === 0 || semester.length === 0) {
-        return res.status(400).json(new ApiError(400, "All fields are required!"));
-    }
-
-    const lectureExist = await Lecture.findOne({
-        $and: [{ teacherId }, { courseCode }, { degreeTitle }, { semester }, { section }, { shift }]
-    });
-
-    if (lectureExist) {
-        return res.status(409).json(new ApiError(409, "Lecture already created!"));
-    }
-
-    const lecture = await Lecture.create({
-        teacherId, courseCode, degreeTitle, semester, section, shift
-    });
-
-    const lectureCreated = await Lecture.findById(lecture._id);
-
-    if (!lectureCreated) {
-        return res.status(500).json(new ApiError(500, "Something went wrong while creating lecture!"));
-    }
-
-    return res.status(201).json(
-        new ApiResponse(201, {}, "Lecture created successfully!")
-    );
-});
-
-const getLecture = asyncHandler(async (req, res) => {
-    const lectures = await Lecture.find();
-
-    if (!lectures.length) {
-        return res.status(404).json(new ApiError(404, "No lectures found!"));
-    }
-
-    return res.status(200).json(
-        new ApiResponse(200, { lectures }, "Lectures fetched successfully!")
-    );
-});
-
-const deleteLecture = asyncHandler(async (req, res) => {
-    const deletedLecture = await Lecture.findByIdAndDelete(req.params.id);
-
-    if (!deletedLecture) {
-        return res.status(500).json(new ApiError(500, "Something went wrong while deleting lecture!"));
-    }
-
-    return res.status(200).json(
-        new ApiResponse(200, {}, "Lecture deleted successfully!")
-    );
-});
-
-
-
-// ─── Course Controllers ──────────────────────────────────────────────────────
-
-const addCourse = asyncHandler(async (req, res) => {
-    const { courseCode, courseName, degreeTitle, semester } = req.body;
-
-    if (!courseCode || !courseName || !degreeTitle || !semester ||
-        courseCode.length === 0 || courseName.length === 0 || degreeTitle.length === 0 || semester.length === 0) {
-        return res.status(400).json(new ApiError(400, "All fields are required!"));
-    }
-
-    const existCourse = await Course.findOne({
-        $and: [{ courseCode }, { courseName }, { degreeTitle }, { semester }]
-    });
-
-    if (existCourse) {
-        return res.status(409).json(new ApiError(409, "Course already created!"));
-    }
-
-    const course = await Course.create({ courseCode, courseName, degreeTitle, semester });
-
-    const courseCreated = await Course.findById(course._id);
-
-    if (!courseCreated) {
-        return res.status(500).json(new ApiError(500, "Something went wrong while creating course!"));
-    }
-
-    return res.status(201).json(
-        new ApiResponse(201, {}, "Course created successfully!")
-    );
-});
-
-const getCourse = asyncHandler(async (req, res) => {
-    const courseList = await Course.find();
-
-    if (!courseList.length) {
-        return res.status(404).json(new ApiError(404, "No courses found!"));
-    }
-
-    return res.status(200).json(
-        new ApiResponse(200, { courses: courseList }, "Courses fetched successfully!")
-    );
-});
-
-const deleteCourse = asyncHandler(async (req, res) => {
-    const deletedCourse = await Course.findByIdAndDelete(req.params.id);
-
-    if (!deletedCourse) {
-        return res.status(500).json(new ApiError(500, "Something went wrong while deleting course!"));
-    }
-
-    return res.status(200).json(
-        new ApiResponse(200, {}, "Course deleted successfully!")
-    );
-});
 
 // ─── Admin Controllers ──────────────────────────────────────────────────────
 
@@ -574,68 +460,558 @@ const changePassword = asyncHandler(async (req, res) => {
     );
 });
 
-// ─── Timetable Controllers ────────────────────────────────────────────────────
+// ─── Attendance Calculation Controllers ────────────────────────────────────────────────────
 
-const addTimetable = asyncHandler(async (req, res) => {
-    const { degreeTitle, semester, section, day, courseName, courseCode, teacherName, startTime, endTime, shift } = req.body;
+const calculateAttendanceByClass = asyncHandler(async (req, res) => {
+    const { degreeTitle, semester, section, shift } = req.body;
 
-    if (!degreeTitle || !semester || !section || !day || !courseName || !courseCode || !teacherName || !startTime || !endTime || !shift ||
-        degreeTitle.length === 0 || semester.length === 0 || section.length === 0 || day.length === 0 ||
-        courseName.length === 0 || teacherName.length === 0 || courseCode.length === 0 ||
-        startTime.length === 0 || endTime.length === 0 || shift.length === 0) {
+    if (!section || !shift || !degreeTitle || !semester ||
+        section.length === 0 || shift.length === 0 || degreeTitle.length === 0 || semester.length === 0) {
         return res.status(400).json(new ApiError(400, "All fields are required!"));
     }
 
-    const timetableExist = await Timetable.findOne({
-        $and: [
-            { degreeTitle }, { semester }, { section }, { day },
-            { courseName }, { teacherName }, { courseCode }, { startTime }, { endTime }, { shift }
-        ]
-    });
+    const current_date = Date.now();
+    const timeStamps = new Date(current_date);
+    const year = String(timeStamps.getFullYear());
 
-    if (timetableExist) {
-        return res.status(409).json(new ApiError(409, "Timetable entry already exists!"));
+    const classAttendance = await Attendance.aggregate([
+        {
+            $match: {
+                degreeTitle,
+                semester: Number(semester),
+                section,
+                shift
+            }
+        },
+        {
+            $match: {
+                $expr: {
+                    $eq: [
+                        {
+                            $dateToString: {
+                                format: "%Y",
+                                date: "$createdAt"
+                            }
+                        },
+                        year
+                    ]
+                }
+            }
+        },
+        {
+            $group: {
+                _id: {
+                    collegeRollNo: "$collegeRollNo",
+                    courseCode: "$courseCode"
+                },
+
+                fullName: { $first: "$fullName" },
+
+                presentCount: {
+                    $sum: {
+                        $cond: [{ $eq: ["$attendance", "Present"] }, 1, 0]
+                    }
+                },
+
+                totalCount: {
+                    $sum: {
+                        $cond: [
+                            {
+                                $in: ["$attendance", ["Present", "Absent"]]
+                            },
+                            1,
+                            0
+                        ]
+                    }
+                }
+            }
+        },
+        {
+            $addFields: {
+                attendancePercentage: {
+                    $toInt: {
+                        $multiply: [
+                            {
+                                $divide: [
+                                    "$presentCount",
+                                    "$totalCount"
+                                ]
+                            },
+                            100
+                        ]
+                    }
+                }
+            }
+        },
+        {
+            $group: {
+                _id: "$_id.collegeRollNo",
+
+                fullName: { $first: "$fullName" },
+
+                coursePercentage: {
+                    $push: {
+                        courseCode: "$_id.courseCode",
+                        percentage: "$attendancePercentage"
+                    }
+                },
+
+                totalPresent: { $sum: "$presentCount" },
+                totalLectures: { $sum: "$totalCount" }
+            }
+        },
+        {
+            $addFields: {
+                overallPercentage: {
+                    $toInt: {
+                        $multiply: [
+                            {
+                                $divide: [
+                                    "$totalPresent",
+                                    "$totalLectures"
+                                ]
+                            },
+                            100
+                        ]
+                    }
+                }
+            }
+        },
+
+        {
+            $project: {
+                _id: 0,
+
+                collegeRollNo: "$_id",
+                fullName: 1,
+
+                coursePercentage: 1,
+                overallPercentage: 1
+            }
+        },
+        {
+            $sort: { collegeRollNo: 1 }
+        }
+    ])
+
+    if (!classAttendance.length) {
+        return res.status(200).json(new ApiResponse(200, { attendance: [] }, "No attendance found!"))
     }
 
-    const timetable = await Timetable.create({
-        degreeTitle, semester, section, day, courseName,
-        teacherName, courseCode, startTime, endTime, shift
-    });
+    console.log(classAttendance)
 
-    const createdTimetable = await Timetable.findById(timetable?._id);
+    return res.status(200).json(new ApiResponse(200, { attendance: classAttendance }, "Attendance is found!"))
+})
 
-    if (!createdTimetable) {
-        return res.status(500).json(new ApiError(500, "Something went wrong while creating timetable!"));
+const calculateAttendanceByStudent = asyncHandler(async (req, res) => {
+    const { studentId, collegeRollNo, semester, degreeTitle } = req.body;
+
+    if (!studentId || !collegeRollNo || !degreeTitle || !semester ||
+        studentId.length === 0 || collegeRollNo.length === 0 || degreeTitle.length === 0 || semester.length === 0) {
+        return res.status(400).json(new ApiError(400, "All fields are required!"));
     }
 
-    return res.status(201).json(
-        new ApiResponse(201, {}, "Timetable created successfully!")
-    );
-});
+    const student = await Student.findOne({
+        studentId,
+        collegeRollNo,
+    })
 
-const getTimetable = asyncHandler(async (req, res) => {
-    const timetableList = await Timetable.find();
-
-    if (!timetableList.length) {
-        return res.status(404).json(new ApiError(404, "No timetables found!"));
+    if (!student) {
+        return res.status(404).json(new ApiError(404, "No student found!"))
     }
 
-    return res.status(200).json(
-        new ApiResponse(200, { timetables: timetableList }, "Timetables fetched successfully!")
-    );
-});
+    const filteredAttendance = await Attendance.aggregate([
+        {
+            $match: {
+                studentId,
+                collegeRollNo,
+                degreeTitle,
+                semester: Number(semester)
+            }
+        },
+        {
+            $group: {
+                _id: "$courseCode",
 
-const deleteTimetable = asyncHandler(async (req, res) => {
-    const deletedTimetable = await Timetable.findByIdAndDelete(req.params.id);
+                fullName: { $first: "$fullName" },
+                collegeRollNo: { $first: "$collegeRollNo" },
+                studentId: { $first: "$studentId" },
+                semester: { $first: "$semester" },
+                degreeTitle: { $first: "$degreeTitle" },
 
-    if (!deletedTimetable) {
-        return res.status(500).json(new ApiError(500, "Something went wrong while deleting timetable!"));
+                presentCount: {
+                    $sum: {
+                        $cond: [{ $eq: ["$attendance", "Present"] }, 1, 0]
+                    }
+                },
+
+                totalCount: {
+                    $sum: {
+                        $cond: [{ $in: ["$attendance", ["Present", "Absent"]] }, 1, 0]
+                    }
+                }
+            }
+        },
+        {
+            $addFields: {
+                attendancePercentage: {
+                    $toInt: {
+                        $multiply: [
+                            {
+                                $divide: [
+                                    "$presentCount",
+                                    "$totalCount"
+                                ]
+                            },
+                            100
+                        ]
+                    }
+                }
+            }
+        },
+        {
+            $group: {
+                _id: "$collegeRollNo",
+
+                fullName: { $first: "$fullName" },
+                studentId: { $first: "$studentId" },
+                semester: { $first: "$semester" },
+                degreeTitle: { $first: "$degreeTitle" },
+
+                coursePercentage: {
+                    $push: {
+                        courseCode: "$_id",
+                        percentage: "$attendancePercentage",
+                        presentCount: "$presentCount",
+                        totalCount: "$totalCount"
+                    }
+                },
+
+                totalPresentCount: {
+                    $sum: "$presentCount"
+                },
+
+                totalClassCount: {
+                    $sum: "$totalCount"
+                }
+            }
+        },
+        {
+            $addFields: {
+                overallPercentage: {
+                    $toInt: {
+                        $multiply: [
+                            {
+                                $divide: [
+                                    "$totalPresentCount",
+                                    "$totalClassCount"
+                                ]
+                            },
+                            100
+                        ]
+                    }
+                }
+            }
+        },
+        {
+            $project: {
+                _id: 0,
+                collegeRollNo: "$_id",
+                studentId: 1,
+                fullName: 1,
+                semester: 1,
+                degreeTitle: 1,
+                coursePercentage: 1,
+                totalPresentCount: 1,
+                totalClassCount: 1,
+                overallPercentage: 1
+            }
+        }
+    ])
+
+    if (!filteredAttendance.length) {
+        return res.status(200).json(new ApiResponse(200, { attendance: [] }, "No attendance found!"))
     }
 
-    return res.status(200).json(
-        new ApiResponse(200, {}, "Timetable deleted successfully!")
-    );
-});
+    console.log(filteredAttendance)
+
+    return res.status(200).json(new ApiResponse(200, { attendance: filteredAttendance }, "Attendance is found!"))
+})
+
+const calculateSOStudentAttendance = asyncHandler(async (req, res) => {
+    const { degreeTitle, semester, shift, section } = req.body;
+
+    if (!section || !shift || !degreeTitle || !semester ||
+        section.length === 0 || shift.length === 0 || degreeTitle.length === 0 || semester.length === 0) {
+        return res.status(400).json(new ApiError(400, "All fields are required!"));
+    }
+
+    const current_date = Date.now();
+    const timeStamps = new Date(current_date);
+    const year = String(timeStamps.getFullYear());
+
+    const filteredAttendance = await Attendance.aggregate([
+        {
+            $match: {
+                degreeTitle,
+                semester: Number(semester),
+                shift,
+                section
+            }
+        },
+        {
+            $match: {
+                $expr: {
+                    $eq: [
+                        {
+                            $dateToString: {
+                                format: "%Y",
+                                date: "$createdAt"
+                            }
+                        },
+                        year
+                    ]
+                }
+            }
+        },
+        {
+            $group: {
+                _id: "$collegeRollNo",
+
+                fullName: { $first: "$fullName" },
+
+                totalPresentCount: {
+                    $sum: {
+                        $cond: [
+                            {
+                                $eq: ["$attendance", "Present"]
+                            },
+                            1,
+                            0
+                        ]
+                    }
+                },
+
+                totalClassCount: {
+                    $sum: {
+                        $cond: [
+                            {
+                                $in: ["$attendance", ["Present", "Absent"]]
+                            },
+                            1,
+                            0
+                        ]
+                    }
+                }
+            }
+        },
+        {
+            $addFields: {
+                overallPercentage: {
+                    $toInt: {
+                        $multiply: [
+                            {
+                                $divide: [
+                                    "$totalPresentCount",
+                                    "$totalClassCount"
+                                ]
+                            },
+                            100
+                        ]
+                    }
+                }
+            }
+        },
+        {
+            $match: {
+                overallPercentage: { $lt: 50 }
+            }
+        },
+        {
+            $project: {
+                _id: 0,
+                collegeRollNo: "$_id",
+                totalPresentCount: 1,
+                totalClassCount: 1,
+                overallPercentage: 1,
+                fullName: 1
+            }
+        },
+        {
+            $sort: { collegeRollNo: 1 }
+        }
+    ])
+
+    if (!filteredAttendance.length) {
+        return res.status(200).json(new ApiResponse(200, { attendance: [] }, "Attendance not found!"))
+    }
+
+    return res.status(200).json(new ApiResponse(200, { attendance: filteredAttendance }, "Attendance is found!"))
+})
+
+const fetchStudentsForPromotion = asyncHandler(async (req, res) => {
+
+    const { degreeTitle, semester } = req.body;
+
+    if (!degreeTitle || !semester || degreeTitle.length === 0 || semester.length === 0) {
+        return res.status(400).json(new ApiError(400, "All fields are required!"));
+    }
+
+    const students = await Student.find({
+        degreeTitle,
+        semester
+    }).select("_id studentId collegeRollNo fullName degreeTitle semester shift section").sort("collegeRollNo");
+
+    if (!students.length) {
+        return res.status(404).json(new ApiError(404, "No students found!"))
+    }
+
+    return res.status(200).json(new ApiResponse(200, { students: students }, "Students found successfully!"))
+
+})
+
+const promoteAndSaveStdAttendance = asyncHandler(async (req, res) => {
+    // 1- Get a prevoios attedance records
+    // 2- Save into studentHistory Field
+    // 3- Increment semester by 1
+    // 4- Delete previous attendance that have already saved in studentHistory
+    // 5- Return a response
+    const studentList = req.body;
+
+    for (const std of studentList) {
+        const filteredAttendance = await Attendance.aggregate([
+            {
+                $match: {
+                    studentId: std.studentId,
+                    collegeRollNo: std.collegeRollNo,
+                    degreeTitle: std.degreeTitle,
+                    semester: std.semester
+                }
+            },
+            {
+                $group: {
+                    _id: "$courseCode",
+
+                    fullName: { $first: "$fullName" },
+                    collegeRollNo: { $first: "$collegeRollNo" },
+                    studentId: { $first: "$studentId" },
+                    semester: { $first: "$semester" },
+                    degreeTitle: { $first: "$degreeTitle" },
+
+                    presentCount: {
+                        $sum: {
+                            $cond: [{ $eq: ["$attendance", "Present"] }, 1, 0]
+                        }
+                    },
+
+                    totalCount: {
+                        $sum: {
+                            $cond: [{ $in: ["$attendance", ["Present", "Absent"]] }, 1, 0]
+                        }
+                    }
+                }
+            },
+            {
+                $addFields: {
+                    attendancePercentage: {
+                        $toInt: {
+                            $multiply: [
+                                {
+                                    $divide: [
+                                        "$presentCount",
+                                        "$totalCount"
+                                    ]
+                                },
+                                100
+                            ]
+                        }
+                    }
+                }
+            },
+            {
+                $group: {
+                    _id: "$collegeRollNo",
+
+                    fullName: { $first: "$fullName" },
+                    studentId: { $first: "$studentId" },
+                    semester: { $first: "$semester" },
+                    degreeTitle: { $first: "$degreeTitle" },
+
+                    coursePercentage: {
+                        $push: {
+                            courseCode: "$_id",
+                            percentage: "$attendancePercentage",
+                            presentCount: "$presentCount",
+                            totalCount: "$totalCount"
+                        }
+                    },
+
+                    totalPresentCount: {
+                        $sum: "$presentCount"
+                    },
+
+                    totalClassCount: {
+                        $sum: "$totalCount"
+                    }
+                }
+            },
+            {
+                $addFields: {
+                    overallPercentage: {
+                        $toInt: {
+                            $multiply: [
+                                {
+                                    $divide: [
+                                        "$totalPresentCount",
+                                        "$totalClassCount"
+                                    ]
+                                },
+                                100
+                            ]
+                        }
+                    }
+                }
+            },
+            {
+                $project: {
+                    _id: 0,
+                    semester: 1,
+                    coursePercentage: 1,
+                    totalPresentCount: 1,
+                    totalClassCount: 1,
+                    overallPercentage: 1
+                }
+            }
+        ])
+        console.log(filteredAttendance)
+
+        const student = await Student.findByIdAndUpdate(
+            std._id,
+            {
+                $push: {
+                    studentHistory: {
+                        $each: filteredAttendance
+                    }
+                },
+                $inc: {
+                    semester: 1
+                }
+            },
+            {
+                new: true
+            }
+        );
+
+        const deletePreAttendance = await Attendance.deleteMany({
+            studentId: std.studentId,
+            collegeRollNo: std.collegeRollNo,
+            degreeTitle: std.degreeTitle,
+            semester: std.semester
+        })
+        console.log(deletePreAttendance)
+    }
+    return res.status(200).json(new ApiResponse(200, "Students promoted successfully!"))
+})
 
 export {
     getStudent,
@@ -646,12 +1022,6 @@ export {
     deleteTeacher,
     updateTeacher,
     registerTeacher,
-    addLecture,
-    deleteLecture,
-    getLecture,
-    addCourse,
-    getCourse,
-    deleteCourse,
     loginAdmin,
     currentAdmin,
     logoutAdmin,
@@ -660,12 +1030,14 @@ export {
     getAdmin,
     deleteAdmin,
     updateAdmin,
-    addTimetable,
-    getTimetable,
-    deleteTimetable,
     resetStudentPassword,
     resetTeacherPassword,
     resetAdminPassword,
     uploadAdminImage,
-    changePassword
+    changePassword,
+    calculateAttendanceByClass,
+    calculateAttendanceByStudent,
+    calculateSOStudentAttendance,
+    fetchStudentsForPromotion,
+    promoteAndSaveStdAttendance
 };

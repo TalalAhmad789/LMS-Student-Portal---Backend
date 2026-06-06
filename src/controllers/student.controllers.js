@@ -162,6 +162,8 @@ const calculateCourseAttendance = asyncHandler(async (req, res) => {
                             $add: ["$presentCount", "$absentCount"]
                         }
                     ]
+
+                    
                 }
             }
         },
@@ -307,7 +309,9 @@ const fetchSpecificAttendance = asyncHandler(async (req, res) => {
             }
         },
         {
-            $unwind: "$courseDetails"
+            $addFields: {
+                courseDetails: { $first: "$courseDetails" }
+            }
         },
         {
             $project: {
@@ -318,6 +322,7 @@ const fetchSpecificAttendance = asyncHandler(async (req, res) => {
             }
         }
     ])
+
     return res.status(200).json(new ApiResponse(200, { attendance: filteredAttendance }, "Specific attendances fetched!"))
 })
 
