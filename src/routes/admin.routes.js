@@ -3,7 +3,7 @@ import {
     deleteStudent, updateStudent, getStudent, registerStudent, deleteTeacher, updateTeacher, getTeacher, registerTeacher, loginAdmin, currentAdmin, logoutAdmin, registerAdmin, getAdmin, deleteAdmin, updateAdmin, registerSuperAdmin, resetStudentPassword, resetTeacherPassword, resetAdminPassword, uploadAdminImage, changePassword, calculateAttendanceByClass, calculateAttendanceByStudent, calculateSOStudentAttendance, fetchStudentsForPromotion, promoteAndSaveStdAttendance
 } from '../controllers/admin.controller.js'
 import { addCourse, getCourse, deleteCourse } from '../controllers/course.controller.js'
-import { addTimetable, getTimetable, deleteTimetable } from '../controllers/admin.controller.js'
+import { addTimetable, getTimetable, deleteTimetable } from '../controllers/timetable.controller.js'
 import { addLecture, getLecture, deleteLecture } from '../controllers/lecture.controller.js'
 import { verifyAdminToken } from '../middlewares/auth.middleware.js'
 import { upload } from '../middlewares/multer.middleware.js'

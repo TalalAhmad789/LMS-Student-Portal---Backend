@@ -595,12 +595,11 @@ const calculateAttendanceByClass = asyncHandler(async (req, res) => {
     ])
 
     if (!classAttendance.length) {
-        return res.status(200).json(new ApiResponse(200, { attendance: [] }, "No attendance found!"))
+        console.log("Brfore:", classAttendance)
+        return res.status(404).json(new ApiError(404, "No attendance records found for the specified class!"))
     }
 
-    console.log(classAttendance)
-
-    return res.status(200).json(new ApiResponse(200, { attendance: classAttendance }, "Attendance is found!"))
+    return res.status(200).json(new ApiResponse(200, { attendance: classAttendance }, "Class attendance records retrieved successfully!"))
 })
 
 const calculateAttendanceByStudent = asyncHandler(async (req, res) => {
@@ -730,12 +729,11 @@ const calculateAttendanceByStudent = asyncHandler(async (req, res) => {
     ])
 
     if (!filteredAttendance.length) {
-        return res.status(200).json(new ApiResponse(200, { attendance: [] }, "No attendance found!"))
+        return res.status(200).json(new ApiError(200, "No attendance records found for this student!"))
     }
 
-    console.log(filteredAttendance)
 
-    return res.status(200).json(new ApiResponse(200, { attendance: filteredAttendance }, "Attendance is found!"))
+    return res.status(200).json(new ApiResponse(200, { attendance: filteredAttendance }, "Student attendance records retrieved successfully!"))
 })
 
 const calculateSOStudentAttendance = asyncHandler(async (req, res) => {
@@ -843,10 +841,10 @@ const calculateSOStudentAttendance = asyncHandler(async (req, res) => {
     ])
 
     if (!filteredAttendance.length) {
-        return res.status(200).json(new ApiResponse(200, { attendance: [] }, "Attendance not found!"))
+        return res.status(200).json(new ApiError(200, "No students with attendance below 50% were found!"))
     }
 
-    return res.status(200).json(new ApiResponse(200, { attendance: filteredAttendance }, "Attendance is found!"))
+    return res.status(200).json(new ApiResponse(200, { attendance: filteredAttendance }, "Students with attendance below 50% retrieved successfully!"))
 })
 
 const fetchStudentsForPromotion = asyncHandler(async (req, res) => {
