@@ -1,6 +1,6 @@
 import Router from 'express'
 import {
-    deleteStudent, updateStudent, getStudent, registerStudent, deleteTeacher, updateTeacher, getTeacher, registerTeacher, loginAdmin, currentAdmin, logoutAdmin, registerAdmin, getAdmin, deleteAdmin, updateAdmin, registerSuperAdmin, resetStudentPassword, resetTeacherPassword, resetAdminPassword, uploadAdminImage, changePassword, calculateAttendanceByClass, calculateAttendanceByStudent, calculateSOStudentAttendance, fetchStudentsForPromotion, promoteAndSaveStdAttendance
+    deleteStudent, updateStudent, getStudent, registerStudent, deleteTeacher, updateTeacher, getTeacher, registerTeacher, loginAdmin, currentAdmin, logoutAdmin, registerAdmin, getAdmin, deleteAdmin, updateAdmin, registerSuperAdmin, resetStudentPassword, resetTeacherPassword, resetAdminPassword, uploadAdminImage, changePassword, calculateAttendanceByClass, calculateAttendanceByStudent, calculateSOStudentAttendance, fetchStudentsForPromotion, promoteAndSaveStdAttendance, structOffStudent, checkIsStudentStructOff
 } from '../controllers/admin.controller.js'
 import { addCourse, getCourse, deleteCourse } from '../controllers/course.controller.js'
 import { addTimetable, getTimetable, deleteTimetable } from '../controllers/timetable.controller.js'
@@ -50,5 +50,7 @@ router.route('/attendance-by-student').post(calculateAttendanceByStudent)
 router.route('/attendance-by-so-student').post(calculateSOStudentAttendance)
 router.route('/get-student-for-promotion').post(fetchStudentsForPromotion)
 router.route('/student-promotion').post(promoteAndSaveStdAttendance)
+router.route('/attendance-struct-off-student').post(structOffStudent)
+router.route('/struct-off-student-check').post(checkIsStudentStructOff)
 
 export default router

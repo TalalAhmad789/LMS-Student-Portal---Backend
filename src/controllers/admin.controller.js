@@ -729,7 +729,7 @@ const calculateAttendanceByStudent = asyncHandler(async (req, res) => {
     ])
 
     if (!filteredAttendance.length) {
-        return res.status(200).json(new ApiError(200, "No attendance records found for this student!"))
+        return res.status(404).json(new ApiError(404, "No attendance records found for this student!"))
     }
 
 
@@ -841,10 +841,63 @@ const calculateSOStudentAttendance = asyncHandler(async (req, res) => {
     ])
 
     if (!filteredAttendance.length) {
-        return res.status(200).json(new ApiError(200, "No students with attendance below 50% were found!"))
+        return res.status(404).json(new ApiError(404, "No students with attendance below 50% were found!"))
     }
 
     return res.status(200).json(new ApiResponse(200, { attendance: filteredAttendance }, "Students with attendance below 50% retrieved successfully!"))
+})
+
+const checkIsStudentStructOff = asyncHandler(async (req, res) => {
+    const { collegeRollNo } = req.body;
+
+    const student = await Student.findOne({ collegeRollNo });
+
+    if (!student) {
+        return res.status(404).json(
+            new ApiError(404, "Student not found!")
+        );
+    }
+
+    if (student.status === "Disabled") {
+        return res.status(400).json(
+            new ApiError(400, "Student is already struck off!")
+        );
+    }
+
+    return res.status(200).json(
+        new ApiResponse(
+            200,
+            {},
+            "Student is available to be struck off!"
+        )
+    );
+});
+
+const structOffStudent = asyncHandler(async (req, res) => {
+    const { collegeRollNo } = req.body;
+
+    const student = await Student.findOne({
+        collegeRollNo
+    })
+
+    if (!student) {
+        return res.status(404).json(new ApiError(404, "Student not found!"))
+    }
+
+    const updatedSOStudent = await Student.findByIdAndUpdate(
+        student._id,
+        {
+            $inc: { stoCount: 1 },
+            $set: { status: "Disabled" }
+        },
+        { new: true }
+    );
+
+    if (!updatedSOStudent) {
+        return res.status(500).json(new ApiError(500, "Someting went wrong while struct off a student!"))
+    }
+
+    return res.status(200).json(new ApiResponse(200, {}, "Student struct off successfully!"))
 })
 
 const fetchStudentsForPromotion = asyncHandler(async (req, res) => {
@@ -1037,5 +1090,7 @@ export {
     calculateAttendanceByStudent,
     calculateSOStudentAttendance,
     fetchStudentsForPromotion,
-    promoteAndSaveStdAttendance
+    promoteAndSaveStdAttendance,
+    structOffStudent,
+    checkIsStudentStructOff
 };
