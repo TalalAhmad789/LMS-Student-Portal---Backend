@@ -7,6 +7,8 @@ import { ApiError } from '../utils/ApiError.js';
 import { ApiResponse } from '../utils/ApiResponse.js';
 import { Lecture } from '../models/lecture.model.js';
 import { Teacher } from '../models/teacher.model.js';
+import crypto from 'crypto'
+import { sendEmail } from '../utils/sendEmail.js'
 
 const generateAccessToken = async (userId, expiry_date_check) => {
     const student = await Student.findById(userId);
@@ -18,23 +20,23 @@ const loginStudent = asyncHandler(async (req, res) => {
     const { studentId, password, checkbox } = req.body;
 
     if (!studentId || studentId.length === 0 || !password || password.length === 0) {
-        return res.status(400).json(new ApiError(400, "All fields are required!"));
+        return res.status(400).json(new ApiError(400, "Please fill in all required fields."));
     }
 
     const student = await Student.findOne({ studentId });
 
     if (!student) {
-        return res.status(404).json(new ApiError(404, "Student not found!"));
+        return res.status(404).json(new ApiError(404, "Invalid Student ID. Please try again."));
     }
 
     if (student.status === 'Disabled') {
-        return res.status(403).json(new ApiError(403, "Your access is denied!"));
+        return res.status(403).json(new ApiError(403, "Your account has been disabled. Please contact the administrator for assistance."));
     }
 
     const passwordValid = await student.isPasswordCorrect(password);
 
     if (!passwordValid) {
-        return res.status(401).json(new ApiError(401, "Invalid user credentials!"));
+        return res.status(401).json(new ApiError(401, "The password you entered is incorrect."));
     }
 
     const { accessToken } = await generateAccessToken(student._id, checkbox);
@@ -55,7 +57,7 @@ const loginStudent = asyncHandler(async (req, res) => {
                     loggedInStudentId: loggedInStudent._id,
                     accessToken
                 }
-            }, "Successfully logged in!")
+            }, "Login successful. Welcome back!")
         );
 });
 
@@ -63,7 +65,7 @@ const logoutStudent = asyncHandler(async (req, res) => {
     const student = req?.user;
 
     if (!student) {
-        return res.status(401).json(new ApiError(401, "Unauthorized request!"));
+        return res.status(401).json(new ApiError(401, "You are not authorized to perform this action."));
     }
 
     const options = {
@@ -75,7 +77,7 @@ const logoutStudent = asyncHandler(async (req, res) => {
         .status(200)
         .clearCookie("accessToken", options)
         .json(
-            new ApiResponse(200, { logoutStudentId: student._id }, "Logout successfully!")
+            new ApiResponse(200, { logoutStudentId: student._id }, "You have been logged out successfully.")
         );
 });
 
@@ -83,7 +85,7 @@ const currentStudent = asyncHandler(async (req, res) => {
     return res
         .status(200)
         .json(
-            new ApiResponse(200, { student: req?.user }, "User fetched successfully!")
+            new ApiResponse(200, { student: req?.user }, "Student profile retrieved successfully.")
         );
 });
 
@@ -93,7 +95,7 @@ const calculateCourseAttendance = asyncHandler(async (req, res) => {
     if (!studentId || !collegeRollNo || !semester || !degreeTitle) {
         return res
             .status(400)
-            .json(new ApiError(400, "All fields are required!"));
+            .json(new ApiError(400, "Please fill in all required fields."));
     }
 
     const courses = await Course.find({
@@ -113,7 +115,7 @@ const calculateCourseAttendance = asyncHandler(async (req, res) => {
                         percentage: 0
                     }
                 },
-                "No course found."
+                "No courses were found for the selected criteria."
             )
         );
     }
@@ -163,7 +165,7 @@ const calculateCourseAttendance = asyncHandler(async (req, res) => {
                         }
                     ]
 
-                    
+
                 }
             }
         },
@@ -268,7 +270,7 @@ const calculateCourseAttendance = asyncHandler(async (req, res) => {
                 courseAttendance,
                 overAllAttendance
             },
-            "Attendance calculated successfully!"
+            "Attendance report generated successfully."
         )
     );
 });
@@ -323,7 +325,7 @@ const fetchSpecificAttendance = asyncHandler(async (req, res) => {
         }
     ])
 
-    return res.status(200).json(new ApiResponse(200, { attendance: filteredAttendance }, "Specific attendances fetched!"))
+    return res.status(200).json(new ApiResponse(200, { attendance: filteredAttendance }, "Attendance records retrieved successfully."))
 })
 
 const changePassword = asyncHandler(async (req, res) => {
@@ -331,30 +333,30 @@ const changePassword = asyncHandler(async (req, res) => {
 
     if (!current_password || !new_password || !retype_password ||
         current_password.length === 0 || new_password.length === 0 || retype_password.length === 0) {
-        return res.status(400).json(new ApiError(400, "All fields are required!"));
+        return res.status(400).json(new ApiError(400, "Please fill in all required fields."));
     }
 
     if (new_password !== retype_password) {
-        return res.status(400).json(new ApiError(400, "Passwords don't match!"));
+        return res.status(400).json(new ApiError(400, "The new password and confirmation password do not match."));
     }
 
     const student = await Student.findById(req?.user?._id);
 
     if (!student) {
-        return res.status(404).json(new ApiError(404, "Student not found!"));
+        return res.status(404).json(new ApiError(404, "Student record could not be found."));
     }
 
     const isPasswordCorrect = await student.isPasswordCorrect(current_password);
 
     if (!isPasswordCorrect) {
-        return res.status(400).json(new ApiError(400, "Current password is incorrect!"));
+        return res.status(400).json(new ApiError(400, "The current password you entered is incorrect."));
     }
 
     student.password = new_password;
     await student.save();
 
     return res.status(200).json(
-        new ApiResponse(200, {}, "Password changed successfully!")
+        new ApiResponse(200, {}, "Your password has been updated successfully.")
     );
 });
 
@@ -363,19 +365,19 @@ const uploadStudentImage = asyncHandler(async (req, res) => {
     const id = req?.body?.id;
 
     if (!avatarFile) {
-        return res.status(400).json(new ApiError(400, "Avatar image is not provided!"));
+        return res.status(400).json(new ApiError(400, "Please select a profile image to upload."));
     }
 
     const avatar = await uploadOnCloudinary(avatarFile, "LMS_Portal/students/avatars");
 
     if (!avatar) {
-        return res.status(400).json(new ApiError(400, "Failed to upload avatar image to Cloudinary!"));
+        return res.status(400).json(new ApiError(400, "Failed to upload the profile image. Please try again later."));
     }
 
     const student = await Student.findById(id);
 
     if (!student) {
-        return res.status(404).json(new ApiError(404, "Student not found!"));
+        return res.status(404).json(new ApiError(404, "Student record could not be found."));
     }
 
     const oldPublicId = student.profileImagePublicId;
@@ -383,7 +385,7 @@ const uploadStudentImage = asyncHandler(async (req, res) => {
     if (oldPublicId) {
         const deleteAvatar = await deleteFromCloudinary(oldPublicId);
         if (!deleteAvatar) {
-            return res.status(400).json(new ApiError(400, "Something went wrong while deleting the old image!"));
+            return res.status(400).json(new ApiError(400, "Unable to remove the previous profile image. Please try again."));
         }
     }
 
@@ -395,9 +397,93 @@ const uploadStudentImage = asyncHandler(async (req, res) => {
     });
 
     return res.status(200).json(
-        new ApiResponse(200, { avatarUrl: avatar.secure_url }, "Profile image uploaded successfully!")
+        new ApiResponse(200, { avatarUrl: avatar.secure_url }, "Profile image updated successfully.")
     );
 });
+
+const forgotPassword = asyncHandler(async (req, res) => {
+    const { studentId, email } = req.body;
+
+    if (!studentId || !email || studentId.length === 0 || email.length === 0) {
+        return res.status(400).json(new ApiError(400, "Please fill in all required fields."))
+    }
+
+    const student = await Student.findOne({
+        $and: [
+            { studentId },
+            { email }
+        ]
+    })
+
+    if (!student) {
+        return res.status(400).json(new ApiError(400, "Invalid Student ID or email address."))
+    }
+
+    const resetToken = crypto.randomBytes(32).toString("hex");
+
+    const hashedToken = crypto.createHash("sha256").update(resetToken).digest("hex");
+
+    student.resetPasswordToken = hashedToken;
+
+    student.resetPasswordExpire = Date.now() + 15 * 60 * 1000;
+
+    await student.save();
+
+    const resetUrl = `${process.env.CLIENT_URL}/reset-password/${resetToken}`
+
+    await sendEmail(
+        student.email,
+        "Reset Password",
+        `
+            <h2>Password Reset</h2>
+
+            <p>
+                Click the button below to reset your password.
+            </p>
+
+            <a href="${resetUrl}">
+                Reset Password
+            </a>
+            `
+    )
+
+    return res.status(200).json(new ApiResponse(200, {}, "Password reset instructions have been sent to your email address."));
+
+})
+
+const resetPassword = asyncHandler(async (req, res) => {
+    const { token } = req.params;
+    const { password } = req.body;
+
+    if (!password || password.length === 0) {
+        return res.status(400).json(new ApiError(400, "Please enter a new password."))
+    }
+
+    const student = await Student.findOne({
+        resetPasswordToken: token,
+        resetPasswordExpire: {
+            $gt: Date.now()
+        }
+    })
+
+    if (!student) {
+        return res.status(400).json(new ApiError(400, "This password reset link is invalid or has expired. Please request a new one."))
+    }
+
+    const existPassword = await student.isPasswordCorrect(password);
+
+    if (existPassword) {
+        return res.status(400).json(new ApiError(400, "For security reasons, please choose a password you have not used before."))
+    }
+
+    student.password = password;
+    student.resetPasswordToken = undefined;
+    student.resetPasswordExpire = undefined;
+    await student.save();
+
+    return res.status(200).json(new ApiResponse(200, {}, "Your password has been reset successfully. You can now log in with your new password."))
+
+})
 
 export {
     logoutStudent,
@@ -406,5 +492,7 @@ export {
     changePassword,
     uploadStudentImage,
     calculateCourseAttendance,
-    fetchSpecificAttendance
+    fetchSpecificAttendance,
+    forgotPassword,
+    resetPassword
 };

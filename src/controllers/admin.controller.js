@@ -345,7 +345,7 @@ const loginAdmin = asyncHandler(async (req, res) => {
     const admin = await Admin.findOne({ email });
 
     if (!admin) {
-        return res.status(401).json(new ApiError(401, "Invalid credentials!"));
+        return res.status(401).json(new ApiError(401, "Email is incorrect!"));
     }
 
     if (admin.status === 'Disabled') {
@@ -355,7 +355,7 @@ const loginAdmin = asyncHandler(async (req, res) => {
     const passwordValid = await admin.isPasswordCorrect(password);
 
     if (!passwordValid) {
-        return res.status(401).json(new ApiError(401, "Invalid credentials!"));
+        return res.status(401).json(new ApiError(401, "Incorrect password!"));
     }
 
     const { accessToken } = generateAccessToken(admin._id, checkbox);

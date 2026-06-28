@@ -23,7 +23,7 @@ const loginTeacher = asyncHandler(async (req, res) => {
     const teacher = await Teacher.findOne({ teacherId });
 
     if (!teacher) {
-        return res.status(404).json(new ApiError(404, "Teacher not found!"));
+        return res.status(404).json(new ApiError(404, "Teacher ID is incorrect!"));
     }
 
     if (teacher.status === 'Disabled') {
@@ -33,7 +33,7 @@ const loginTeacher = asyncHandler(async (req, res) => {
     const passwordValid = await teacher.isPasswordCorrect(password);
 
     if (!passwordValid) {
-        return res.status(401).json(new ApiError(401, "Invalid user credentials!"));
+        return res.status(401).json(new ApiError(401, "Incorrect Password!"));
     }
 
     const { accessToken } = await generateAccessToken(teacher._id, checkbox);
@@ -54,7 +54,7 @@ const loginTeacher = asyncHandler(async (req, res) => {
                     loggedInTeacherId: loggedInTeacher._id,
                     accessToken
                 }
-            }, "Successfully logged in!")
+            }, "Login successful!")
         );
 });
 
