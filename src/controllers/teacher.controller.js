@@ -17,33 +17,30 @@ const loginTeacher = asyncHandler(async (req, res) => {
     const { teacherId, password, checkbox } = req.body;
 
     if (!teacherId || teacherId.length === 0 || !password || password.length === 0) {
-        return res.status(400).json(new ApiError(400, "All fields are required!"));
+        return res.status(400).json(new ApiError(400, "All fields are required."));
     }
 
     const teacher = await Teacher.findOne({ teacherId });
 
     if (!teacher) {
-        return res.status(404).json(new ApiError(404, "Teacher ID is incorrect!"));
+        return res.status(404).json(new ApiError(404, "No account found with this Teacher ID."));
     }
 
     if (teacher.status === 'Disabled') {
-        return res.status(403).json(new ApiError(403, "Your access is denied!"));
+        return res.status(403).json(new ApiError(403, "Your account has been disabled. Please contact the administrator for assistance."));
     }
 
     const passwordValid = await teacher.isPasswordCorrect(password);
 
     if (!passwordValid) {
-        return res.status(401).json(new ApiError(401, "Incorrect Password!"));
+        return res.status(401).json(new ApiError(401, "Incorrect password. Please try again."));
     }
 
     const { accessToken } = await generateAccessToken(teacher._id, checkbox);
 
     const loggedInTeacher = await Teacher.findById(teacher._id).select("-password");
 
-    const options = {
-        httpOnly: true,
-        secure: true
-    };
+    const options = { httpOnly: true, secure: true };
 
     return res
         .status(200)
@@ -54,7 +51,7 @@ const loginTeacher = asyncHandler(async (req, res) => {
                     loggedInTeacherId: loggedInTeacher._id,
                     accessToken
                 }
-            }, "Login successful!")
+            }, "Logged in successfully.")
         );
 });
 
@@ -62,19 +59,16 @@ const logoutTeacher = asyncHandler(async (req, res) => {
     const teacher = req?.user;
 
     if (!teacher) {
-        return res.status(401).json(new ApiError(401, "Unauthorized request!"));
+        return res.status(401).json(new ApiError(401, "Unauthorized. No active session found."));
     }
 
-    const options = {
-        httpOnly: true,
-        secure: true
-    };
+    const options = { httpOnly: true, secure: true };
 
     return res
         .status(200)
         .clearCookie("accessToken", options)
         .json(
-            new ApiResponse(200, { logoutTeacherId: teacher._id }, "Logout successfully!")
+            new ApiResponse(200, { logoutTeacherId: teacher._id }, "Logged out successfully.")
         );
 });
 
@@ -82,7 +76,7 @@ const currentTeacher = asyncHandler(async (req, res) => {
     return res
         .status(200)
         .json(
-            new ApiResponse(200, { teacher: req?.user }, "User fetched successfully!")
+            new ApiResponse(200, { teacher: req?.user }, "Authenticated teacher details fetched successfully.")
         );
 });
 
@@ -91,19 +85,19 @@ const uploadTeacherImage = asyncHandler(async (req, res) => {
     const id = req?.body?.id;
 
     if (!avatarFile) {
-        return res.status(400).json(new ApiError(400, "Avatar image is not provided!"));
+        return res.status(400).json(new ApiError(400, "No profile image provided. Please upload a valid image file."));
     }
 
     const avatar = await uploadOnCloudinary(avatarFile, "LMS_Portal/teachers/avatars");
 
     if (!avatar) {
-        return res.status(400).json(new ApiError(400, "Failed to upload avatar image to Cloudinary!"));
+        return res.status(502).json(new ApiError(502, "Failed to upload image to cloud storage. Please try again."));
     }
 
     const teacher = await Teacher.findById(id);
 
     if (!teacher) {
-        return res.status(404).json(new ApiError(404, "Teacher not found!"));
+        return res.status(404).json(new ApiError(404, "Teacher not found. Image upload aborted."));
     }
 
     const oldPublicId = teacher.profileImagePublicId;
@@ -111,7 +105,7 @@ const uploadTeacherImage = asyncHandler(async (req, res) => {
     if (oldPublicId) {
         const deleteAvatar = await deleteFromCloudinary(oldPublicId);
         if (!deleteAvatar) {
-            return res.status(400).json(new ApiError(400, "Something went wrong while deleting the old image!"));
+            return res.status(502).json(new ApiError(502, "Failed to remove the existing profile image. Please try again."));
         }
     }
 
@@ -123,7 +117,7 @@ const uploadTeacherImage = asyncHandler(async (req, res) => {
     });
 
     return res.status(200).json(
-        new ApiResponse(200, { avatarUrl: avatar.secure_url }, "Profile image uploaded successfully!")
+        new ApiResponse(200, { avatarUrl: avatar.secure_url }, "Profile image updated successfully.")
     );
 });
 
@@ -131,17 +125,17 @@ const getTeacherLectures = asyncHandler(async (req, res) => {
     const teacher = req?.user;
 
     if (!teacher) {
-        return res.status(401).json(new ApiError(401, "Unauthorized request!"));
+        return res.status(401).json(new ApiError(401, "Unauthorized. No active session found."));
     }
 
     const lectures = await Lecture.find({ teacherId: teacher.teacherId });
 
     if (!lectures.length) {
-        return res.status(404).json(new ApiError(404, "No lectures found!"));
+        return res.status(404).json(new ApiError(404, "No lectures are currently assigned to this teacher."));
     }
 
     return res.status(200).json(
-        new ApiResponse(200, { lectures }, "Lectures fetched successfully!")
+        new ApiResponse(200, { lectures }, `${lectures.length} lecture(s) fetched successfully.`)
     );
 });
 
@@ -150,7 +144,7 @@ const getLectureEnrolledStudents = asyncHandler(async (req, res) => {
 
     if (!degree || !section || !shift || !semester ||
         degree.length === 0 || section.length === 0 || shift.length === 0 || semester.length === 0) {
-        return res.status(400).json(new ApiError(400, "All fields are required!"));
+        return res.status(400).json(new ApiError(400, "All fields are required."));
     }
 
     const lectureStudents = await Student.find({
@@ -163,11 +157,11 @@ const getLectureEnrolledStudents = asyncHandler(async (req, res) => {
     }).select('-password -cnic');
 
     if (!lectureStudents.length) {
-        return res.status(404).json(new ApiError(404, "No students found!"));
+        return res.status(404).json(new ApiError(404, "No students found enrolled in this lecture."));
     }
 
     return res.status(200).json(
-        new ApiResponse(200, { students: lectureStudents }, "Students fetched successfully!")
+        new ApiResponse(200, { students: lectureStudents }, `${lectureStudents.length} student(s) fetched successfully.`)
     );
 });
 
@@ -176,30 +170,34 @@ const changePassword = asyncHandler(async (req, res) => {
 
     if (!current_password || !new_password || !retype_password ||
         current_password.length === 0 || new_password.length === 0 || retype_password.length === 0) {
-        return res.status(400).json(new ApiError(400, "All fields are required!"));
+        return res.status(400).json(new ApiError(400, "All fields are required."));
     }
 
     if (new_password !== retype_password) {
-        return res.status(400).json(new ApiError(400, "Passwords don't match!"));
+        return res.status(400).json(new ApiError(400, "New password and confirm password do not match."));
+    }
+
+    if (new_password === current_password) {
+        return res.status(400).json(new ApiError(400, "New password must be different from the current password."));
     }
 
     const teacher = await Teacher.findById(req?.user?._id);
 
     if (!teacher) {
-        return res.status(404).json(new ApiError(404, "Teacher not found!"));
+        return res.status(404).json(new ApiError(404, "Teacher session is invalid. Please log in again."));
     }
 
     const isPasswordCorrect = await teacher.isPasswordCorrect(current_password);
 
     if (!isPasswordCorrect) {
-        return res.status(400).json(new ApiError(400, "Current password is incorrect!"));
+        return res.status(401).json(new ApiError(401, "Current password is incorrect."));
     }
 
     teacher.password = new_password;
     await teacher.save();
 
     return res.status(200).json(
-        new ApiResponse(200, {}, "Password changed successfully!")
+        new ApiResponse(200, {}, "Password changed successfully. Please use your new password on next login.")
     );
 });
 
@@ -207,29 +205,25 @@ const submitAttendance = asyncHandler(async (req, res) => {
     const studentAtdList = req.body;
 
     if (!studentAtdList || !Array.isArray(studentAtdList) || studentAtdList.length === 0) {
-        return res.status(400).json(new ApiError(400, "Attendance submission failed — no data provided!"));
+        return res.status(400).json(new ApiError(400, "All fields are required."));
     }
 
     const attendance = await Attendance.insertMany(studentAtdList);
 
     if (!attendance) {
-        return res.status(500).json(new ApiError(500, "Something went wrong while saving attendance!"));
+        return res.status(500).json(new ApiError(500, "Failed to save attendance records. Please try again."));
     }
 
     return res.status(201).json(
-        new ApiResponse(201, {}, "Student attendance uploaded successfully!")
+        new ApiResponse(201, { recordsSubmitted: studentAtdList.length }, `Attendance submitted successfully for ${studentAtdList.length} student(s).`)
     );
 });
 
-// This method returns date and time with group of student attendance
 const getAttendance = asyncHandler(async (req, res) => {
     const { degreeTitle, semester, courseCode, shift, section } = req.query;
 
-
     if (!degreeTitle || !semester || !courseCode || !shift || !section) {
-        return res
-            .status(400)
-            .json(new ApiError(400, "All fields are required!"));
+        return res.status(400).json(new ApiError(400, "All fields are required."));
     }
 
     const attendance = await Attendance.aggregate([
@@ -245,32 +239,15 @@ const getAttendance = asyncHandler(async (req, res) => {
         {
             $group: {
                 _id: "$lectureAttendanceId",
-
-                totalStudents: {
-                    $sum: 1
-                },
-
-                presentCount: {
-                    $sum: {
-                        $cond: [
-                            { $eq: ["$attendance", "Present"] },
-                            1,
-                            0
-                        ]
-                    }
-                },
-
-                createdAt: {
-                    $first: "$createdAt"
-                }
+                totalStudents: { $sum: 1 },
+                presentCount: { $sum: { $cond: [{ $eq: ["$attendance", "Present"] }, 1, 0] } },
+                createdAt: { $first: "$createdAt" }
             }
         },
         {
             $project: {
                 _id: 0,
-
                 lectureAttendanceId: "$_id",
-
                 Attendance: {
                     $concat: [
                         { $toString: "$presentCount" },
@@ -278,27 +255,11 @@ const getAttendance = asyncHandler(async (req, res) => {
                         { $toString: "$totalStudents" }
                     ]
                 },
-
-                date: {
-                    $dateToString: {
-                        format: "%m/%d/%Y",
-                        date: "$createdAt"
-                    }
-                },
-
-                time: {
-                    $dateToString: {
-                        format: "%H:%M:%S",
-                        date: "$createdAt"
-                    }
-                }
+                date: { $dateToString: { format: "%m/%d/%Y", date: "$createdAt" } },
+                time: { $dateToString: { format: "%H:%M:%S", date: "$createdAt" } }
             }
         },
-        {
-            $sort: {
-                date: -1
-            }
-        }
+        { $sort: { date: -1 } }
     ]);
 
     return res.status(200).json(
@@ -306,18 +267,17 @@ const getAttendance = asyncHandler(async (req, res) => {
             200,
             { attendance },
             attendance.length
-                ? "Attendance fetched successfully!"
-                : "No attendance found."
+                ? `${attendance.length} attendance record(s) fetched successfully.`
+                : "No attendance records found for the selected criteria."
         )
     );
 });
 
-// This method gets the list of students for update using mostly date and time
 const getStudentAttendance = asyncHandler(async (req, res) => {
     const { degreeTitle, semester, shift, section, courseCode, lectureAttendanceId } = req.query;
 
     if (!degreeTitle || !semester || !shift || !section || !courseCode || !lectureAttendanceId) {
-        return res.status(400).json(new ApiError(400, "All fields are required!"));
+        return res.status(400).json(new ApiError(400, "All fields are required."));
     }
 
     const attendanceRecords = await Attendance.find({
@@ -330,26 +290,25 @@ const getStudentAttendance = asyncHandler(async (req, res) => {
     });
 
     if (!attendanceRecords.length) {
-        return res.status(404).json(new ApiError(404, "No attendance records found!"));
+        return res.status(404).json(new ApiError(404, "No attendance records found for the specified lecture."));
     }
 
     return res.status(200).json(
-        new ApiResponse(200, { attendance: attendanceRecords }, "Attendance fetched successfully!")
+        new ApiResponse(200, { attendance: attendanceRecords }, `${attendanceRecords.length} student attendance record(s) fetched successfully.`)
     );
 });
 
-// This method actually updates attendance of a group of students
 const updateStudentAttendance = asyncHandler(async (req, res) => {
     const studentsData = req.body;
 
     if (!studentsData || !Array.isArray(studentsData) || studentsData.length === 0) {
-        return res.status(400).json(new ApiError(400, "No student data provided!"));
+        return res.status(400).json(new ApiError(400, "All fields are required."));
     }
 
     const lectureAttendanceId = studentsData[0].lectureAttendanceId;
 
     if (!lectureAttendanceId) {
-        return res.status(400).json(new ApiError(400, "lectureAttendanceId is missing!"));
+        return res.status(400).json(new ApiError(400, "Lecture attendance ID is missing. Please provide a valid session reference."));
     }
 
     for (const student of studentsData) {
@@ -363,16 +322,12 @@ const updateStudentAttendance = asyncHandler(async (req, res) => {
                 lectureAttendanceId,
                 studentId: student.studentId
             },
-            {
-                $set: {
-                    attendance: student.attendance
-                }
-            }
+            { $set: { attendance: student.attendance } }
         );
     }
 
     return res.status(200).json(
-        new ApiResponse(200, {}, "Attendance updated successfully!")
+        new ApiResponse(200, { recordsUpdated: studentsData.length }, `Attendance updated successfully for ${studentsData.length} student(s).`)
     );
 });
 
